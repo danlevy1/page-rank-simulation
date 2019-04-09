@@ -20,40 +20,27 @@ int main (int argc, char *argv[]) {
     int maxPagesPerProc = numPages / numProcs;                                          // Maximum number of pages (dense rows) per proc
     int maxLinksPerProc = (maxPagesPerProc) * 2;                                        // Maximum number of links per process
     int *rowIndexVector = (int *)malloc(sizeof(int) * (maxPagesPerProc) + 1);  ;        // Row index vector
-    double *xVectorLocal = (double *)malloc(sizeof(double) * (maxPagesPerProc));        // Local multiply vector
     double *xVectorGlobal = (double *)malloc(sizeof(double) * numPages);                // Global multiply vector
     double *yVector = (double *)malloc(sizeof(double) * numPages);                      // Page rank vector
     double *rankMatrix;                                                                 // Sparse rank matrix
     int *columnIndexVector;                                                             // Column index vector
-    double *xVector;                                                                    // Multiply vector
     if (myID == 0) {
         rankMatrix = (double *)malloc(sizeof(double) * (maxLinksPerProc - 1));          // rankMatrix size for process 0 is 1 smaller than all other processes
         columnIndexVector = (int *)malloc(sizeof(int) * (maxLinksPerProc - 1));         // columnIndexVector size for process 0 is 1 smaller than all other processes
-        xVector = (double *)malloc(sizeof(double) * (maxPagesPerProc + 1));             // xVector size for process 0 is 1 smaller than all other processes
     } else {
         rankMatrix = (double *)malloc(sizeof(double) * maxLinksPerProc);
         columnIndexVector = (int *)malloc(sizeof(int) * maxLinksPerProc);
-        xVector =  (double *)malloc(sizeof(double) * (maxPagesPerProc + 2));  
     }
 
     // Checks if any memory allocation failed
-    if (rankMatrix == NULL || rowIndexVector == NULL || columnIndexVector == NULL || xVectorLocal == NULL || xVectorGlobal == NULL || xVector == NULL || yVector == NULL) {
-        printf("Memory allocation for rankMatrix, rowIndexVector, columnIndexVector, xVectorLocal, xVectorGlobal, xVector, or yVector failed");
+    if (rankMatrix == NULL || rowIndexVector == NULL || columnIndexVector == NULL || xVectorGlobal == NULL || yVector == NULL) {
+        printf("Memory allocation for rankMatrix, rowIndexVector, columnIndexVector, xVectorGlobal, or yVector failed");
         return 1;
     }
 
-    // Initializes xVectorLocal elements to 1 / numPages
-    for (i = 0; i < maxPagesPerProc; i ++) {
-        xVectorLocal[i] = (double) 1 / (double) numPages;
-    }
-
-    // Initializes xVector elements to 1 / numPages
-    iMax = maxPagesPerProc + 2;
-    if (myID == 0) {                                                                    // Process 0 holds 1 less rankMatrix element
-        iMax --;
-    }
-    for (i = 0; i < iMax; i ++) {
-        xVector[i] = (double) 1 / (double) numPages;
+    // Initializes xVectorGlobal elements to 1 / numPages
+    for (i = 0; i < numPages; i ++) {
+        xVectorGlobal[i] = (double) 1 / (double) numPages;
     }
 
     // Initializes all rankRatrix elements to 0.5 with damping factor
@@ -126,56 +113,13 @@ int main (int argc, char *argv[]) {
         matVecStartTime = MPI_Wtime();
     }
 
-    // iMax = maxPagesPerProc + 2;
-    // if (myID == 0) {                                                                    // Process 0 holds 1 less rankMatrix element
-    //     iMax --;
-    // }
-    // for (i = 0; i < iMax; i ++) {
-    //     printf("myID = %d, xVector[%d] = %lf\n", myID, i, xVector[i]);
-    // }
-
     // Multiplies rankMatrix by xVector to get yVector (loops numMatvec times)
     for (i = 0; i < numMatvec; i ++) {
-        // MPI_Allgather(xVectorLocal, maxPagesPerProc, MPI_DOUBLE, xVectorGlobal, maxPagesPerProc, MPI_DOUBLE, MPI_COMM_WORLD);   // Gathers all local xVectors into global xVector
-        if (myID == 0) {
-            MPI_Send(&xVector[0], 1, MPI_DOUBLE, numProcs - 1, 0, MPI_COMM_WORLD);
-            // printf("1\n");
-            // fflush(stdout);
-            MPI_Send(&xVector[maxPagesPerProc], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD);
-            // printf("2\n");
-            // fflush(stdout);
-            MPI_Recv(&xVector[1], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("3\n");
-            // fflush(stdout);
-        } else if (myID == numProcs - 1) {
-            MPI_Send(&xVector[2], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD);
-            // printf("myID = %d, 4\n", myID);
-            // fflush(stdout);
-            MPI_Recv(&xVector[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("myID = %d, 5\n", myID);
-            // fflush(stdout);
-            MPI_Recv(&xVector[1], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("myID = %d, 6\n", myID);
-            // fflush(stdout);
-        } else {
-            MPI_Send(&xVector[1], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD);
-            // printf("7\n");
-            // fflush(stdout);
-            MPI_Send(&xVector[maxPagesPerProc], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD);
-            // printf("8\n");
-            // fflush(stdout);
-            MPI_Recv(&xVector[0], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("9\n");
-            // fflush(stdout);
-            MPI_Recv(&xVector[maxPagesPerProc + 1], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("10\n");
-            // fflush(stdout);
-        }
         for (j = 0; j < maxPagesPerProc; j ++) {
             yVector[j] = 0.0;
             for (k = rowIndexVector[j]; k < rowIndexVector[j + 1]; k ++) {
-                // yVector[j] += rankMatrix[k] * xVectorGlobal[columnIndexVector[k]];
-                yVector[j] += rankMatrix[k] * xVector[columnIndexVector[k]];
+                yVector[j] += rankMatrix[k] * xVectorGlobal[columnIndexVector[k]];
+                // yVector[j] += rankMatrix[k] * xVector[columnIndexVector[k]];
                 // printf("myID = %d, xVector index needed = %d, xVector index computed = %d\n", myID, columnIndexVector[k], j);
             }
         }
@@ -183,9 +127,27 @@ int main (int argc, char *argv[]) {
         for (j = 0; j < numPages; j ++) {
             yVector[j] += dampingFactor / numPages;
         }
-        // Copies yVector elements to xVector
+        // Copies yVector elements to xVectorGlobal
         for (j = 0; j < maxPagesPerProc; j ++) {
-            xVectorLocal[j] = yVector[j];
+            xVectorGlobal[(myID * maxPagesPerProc) + j] = yVector[j];
+        }
+
+        // Send and receive elements needed for next matvec
+        if (numProcs > 1) {                                                                                                                 // No communication needed with just 1 process
+            if (myID == 0) {                                                                                                                // Process 0 has custom sends and receives
+                MPI_Send(&xVectorGlobal[0], 1, MPI_DOUBLE, numProcs - 1, 0, MPI_COMM_WORLD);                                                // Sends xVectorGlobal[0] element to process numProcs - 1
+                MPI_Send(&xVectorGlobal[maxPagesPerProc - 1], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD);                                  // Sends xVectorGlobal[maxPagesPerProc - 1] element to process myID + 1
+                MPI_Recv(&xVectorGlobal[maxPagesPerProc], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);                   // Receives xVectorGlobal[maxPagesPerProc] element to process myID + 1
+            } else if (myID == numProcs - 1) {                                                                                              // Process numProcs - 1 has custom sends and receives
+                MPI_Send(&xVectorGlobal[myID * maxPagesPerProc], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD);                               // Sends xVectorGlobal[myID * maxPagesPerProc] element to process myID - 1
+                MPI_Recv(&xVectorGlobal[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);                                        // Receives xVectorGlobal[0] element from process 0
+                MPI_Recv(&xVectorGlobal[(myID * maxPagesPerProc) - 1], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);      // Receives xVectorGlobal[(myID * maxPagesPerProc) - 1] element from process myID - 1
+            } else {                                                                                                                        // Sends and receives for all other processes
+                MPI_Send(&xVectorGlobal[myID * maxPagesPerProc], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD);                               // Sends xVectorGlobal[myID * maxPagesPerProc] element to process myID - 1
+                MPI_Send(&xVectorGlobal[maxPagesPerProc * (myID + 1) - 1], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD);                     // Sends xVectorGlobal[maxPagesPerProc * (myID + 1) - 1] element to process myID + 1
+                MPI_Recv(&xVectorGlobal[(myID * maxPagesPerProc) - 1], 1, MPI_DOUBLE, myID - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);      // Receives xVectorGlobal[(myID * maxPagesPerProc) - 1] element from myID - 1
+                MPI_Recv(&xVectorGlobal[maxPagesPerProc * (myID + 1)], 1, MPI_DOUBLE, myID + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);      // Receives xVectorGlobal[maxPagesPerProc * (myID + 1)] element from myID + 1
+            }
         }
     }
 
@@ -194,31 +156,40 @@ int main (int argc, char *argv[]) {
         matVecTime = MPI_Wtime() - matVecStartTime;
     }
 
-    // MPI_Allgather(xVectorLocal, maxPagesPerProc, MPI_DOUBLE, xVectorGlobal, maxPagesPerProc, MPI_DOUBLE, MPI_COMM_WORLD);       // Gathers all local xVectors into global xVector
+    // Gathers xVectorGlobal elements from each process and puts them into process 0's xVectorGlobal
+    if (numProcs > 1) {                                                                                                                     // No communication needed with just 1 process
+        if (myID == 0) {                                                                                                                    // Process 0 receives all elements
+            for (i = 1; i < numProcs; i ++) {
+                MPI_Recv(&xVectorGlobal[(i * maxPagesPerProc)], maxPagesPerProc, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);      // Receives maxPagesPerProc elements from processes 1 through numProcs - 1
+            }
+        } else {                                                                                                                            // All other processes send their elements
+            MPI_Send(&xVectorGlobal[(myID * maxPagesPerProc)], maxPagesPerProc, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);                          // Sends maxPagesPerProc elements to process 0
+        }
+    }
 
-    // // Process 0 prints final results
-    // if (myID == 0) {
-    //     // Prints final page ranks
-    //     for (i = 0; i < numPages; i ++) {
-    //         printf("Page %d Rank: %.20f\n", i + 1, xVectorGlobal[i]);
-    //     }
+    // Process 0 prints final results
+    if (myID == 0) {
+        // Prints final page ranks
+        for (i = 0; i < numPages; i ++) {
+            printf("Page %d Rank: %.20f\n", i + 1, xVectorGlobal[i]);
+        }
 
-    //     // Prints minimum and maximum page ranks
-    //     double min = DBL_MAX;
-    //     double max = -DBL_MAX;
-    //     for (i = 0; i < numPages; i ++) {
-    //         if (xVectorGlobal[i] < min) {
-    //             min = xVectorGlobal[i];
-    //         }
-    //         if (xVectorGlobal[i] > max) {
-    //             max = xVectorGlobal[i];
-    //         }
-    //     }
-    //     printf("Min Page Rank: %f\n", min);
-    //     printf("Max Page Rank: %f\n", max);
+        // Prints minimum and maximum page ranks
+        double min = DBL_MAX;
+        double max = -DBL_MAX;
+        for (i = 0; i < numPages; i ++) {
+            if (xVectorGlobal[i] < min) {
+                min = xVectorGlobal[i];
+            }
+            if (xVectorGlobal[i] > max) {
+                max = xVectorGlobal[i];
+            }
+        }
+        printf("Min Page Rank: %f\n", min);
+        printf("Max Page Rank: %f\n", max);
 
-    //     printf("Time: %f Seconds\n", matVecTime);   // Prints the matvec computational time
-    // }
+        printf("Time: %f Seconds\n", matVecTime);   // Prints the matvec computational time
+    }
     if (myID == 0) {
          printf("\n\n\nDone.");
     }
