@@ -12,7 +12,7 @@ int main (int argc, char *argv[]) {
 
     // Initialize variables
     int i, j, k, iStart, iMax;                                                          // Loop variables
-    int numPages = 16;                                                                  // Number of pages on the WWW
+    int numPages = 1600;                                                                // Number of pages on the WWW
     double dampingFactor = 0.15;                                                        // Probablility that the surfer picks any page at random
     int numMatvec = 1000;                                                               // Number of multiplications
     double matVecStartTime;                                                             // Start time of timer
@@ -21,7 +21,7 @@ int main (int argc, char *argv[]) {
     int maxLinksPerProc = (maxPagesPerProc) * 2;                                        // Maximum number of links per process
     int *rowIndexVector = (int *)malloc(sizeof(int) * (maxPagesPerProc) + 1);  ;        // Row index vector
     double *xVectorGlobal = (double *)malloc(sizeof(double) * numPages);                // Global multiply vector
-    double *yVector = (double *)malloc(sizeof(double) * numPages);                      // Page rank vector
+    double *yVector = (double *)malloc(sizeof(double) * maxPagesPerProc);               // Page rank vector
     double *rankMatrix;                                                                 // Sparse rank matrix
     int *columnIndexVector;                                                             // Column index vector
     if (myID == 0) {
@@ -119,12 +119,10 @@ int main (int argc, char *argv[]) {
             yVector[j] = 0.0;
             for (k = rowIndexVector[j]; k < rowIndexVector[j + 1]; k ++) {
                 yVector[j] += rankMatrix[k] * xVectorGlobal[columnIndexVector[k]];
-                // yVector[j] += rankMatrix[k] * xVector[columnIndexVector[k]];
-                // printf("myID = %d, xVector index needed = %d, xVector index computed = %d\n", myID, columnIndexVector[k], j);
             }
         }
         // Adds damping factor to yVector
-        for (j = 0; j < numPages; j ++) {
+        for (j = 0; j < maxPagesPerProc; j ++) {
             yVector[j] += dampingFactor / numPages;
         }
         // Copies yVector elements to xVectorGlobal
@@ -190,8 +188,6 @@ int main (int argc, char *argv[]) {
 
         printf("Time: %f Seconds\n", matVecTime);   // Prints the matvec computational time
     }
-    if (myID == 0) {
-         printf("\n\n\nDone.");
-    }
+    
     MPI_Finalize();
 }
