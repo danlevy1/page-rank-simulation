@@ -6,9 +6,9 @@ Given a "web" of pages (links from one page to another), determine the page rank
 
 ### Submission
 
-[Writeup](submission/writeup.pdf)
+[Writeup](writeup.pdf)
 
-[Presentation](submission/presentation.pdf)
+[Presentation](presentation.pdf)
 
 ### Note to Students
 No information (including code) found here should ever be copied or reproduced for any reason. Doing so violates academic integrity. Please follow your institution's academic integrity policy to avoid negative consequences.
