@@ -1,4 +1,4 @@
-# Page Rank Algorithm Simulation (Parallel Processing Course)
+# Page Rank Algorithm Simulation (Parallel Processing Final Project)
 
 ### Motivation
 
